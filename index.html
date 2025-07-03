@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>엔트리 유저 검색기</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
@@ -17,56 +17,77 @@
 </head>
 <body>
   <h2>🔍 엔트리 유저 검색기</h2>
-  <input type="text" id="nickname" placeholder="닉네임 입력">
-  <button onclick="searchUser()">검색</button>
+  <input type="text" id="nickname" placeholder="닉네임 입력" />
+  <button id="searchBtn">검색</button>
   <div id="result" style="margin-top: 20px;"></div>
 
   <script>
+    // 간단 유사도: 앞글자 일치 개수
     function similarity(a, b) {
       a = a.toLowerCase();
       b = b.toLowerCase();
       let matches = 0;
       for (let i = 0; i < Math.min(a.length, b.length); i++) {
         if (a[i] === b[i]) matches++;
+        else break; // 연속해서 일치해야 하므로 여기서 끊기
       }
       return matches;
     }
 
-    function searchUser() {
-      const nickname = document.getElementById("nickname").value.trim();
-      const resultBox = document.getElementById("result");
-      resultBox.innerHTML = "🔎 검색 중...";
+    const btn = document.getElementById('searchBtn');
+    const input = document.getElementById('nickname');
+    const resultBox = document.getElementById('result');
 
-      // ⚠ CORS 프록시 주소 (테스트용)
+    async function searchUser() {
+      const nickname = input.value.trim();
+      if (!nickname) {
+        resultBox.textContent = '❗ 닉네임을 입력해주세요.';
+        return;
+      }
+
+      btn.disabled = true;
+      resultBox.textContent = '🔎 검색 중...';
+
       const proxy = "https://corsproxy.io/?";
       const url = `https://playentry.org/api/user/find?q=${encodeURIComponent(nickname)}`;
 
-      fetch(proxy + url)
-        .then(res => res.json())
-        .then(users => {
-          if (users.length === 0) {
-            resultBox.innerHTML = "😢 해당 닉네임을 가진 사용자가 없습니다.";
-            return;
-          }
+      try {
+        const res = await fetch(proxy + url);
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
-          // 유사도 기준 정렬
-          users.sort((a, b) => similarity(b.nickname, nickname) - similarity(a.nickname, nickname));
+        const users = await res.json();
 
-          resultBox.innerHTML = "<h3>🔗 유사 닉네임 검색 결과:</h3>";
-          users.forEach(user => {
-            const link = document.createElement("a");
-            link.href = `https://playentry.org/profile/${user._id}`;
-            link.textContent = `🧑 ${user.nickname}`;
-            link.className = "user-link";
-            link.target = "_blank";
-            resultBox.appendChild(link);
-          });
-        })
-        .catch(err => {
-          console.error(err);
-          resultBox.innerHTML = "⚠️ 오류 발생 (인터넷 문제 또는 Entry 서버 문제일 수 있음)";
+        if (!Array.isArray(users) || users.length === 0) {
+          resultBox.textContent = "😢 해당 닉네임을 가진 사용자가 없습니다.";
+          btn.disabled = false;
+          return;
+        }
+
+        users.sort((a, b) => similarity(b.nickname, nickname) - similarity(a.nickname, nickname));
+
+        resultBox.innerHTML = "<h3>🔗 유사 닉네임 검색 결과:</h3>";
+        users.forEach(user => {
+          const link = document.createElement("a");
+          link.href = `https://playentry.org/profile/${user._id}`;
+          link.textContent = `🧑 ${user.nickname}`;
+          link.className = "user-link";
+          link.target = "_blank";
+          resultBox.appendChild(link);
         });
+      } catch (err) {
+        console.error(err);
+        resultBox.textContent = "⚠️ 오류 발생 (인터넷 문제 또는 Entry 서버 문제일 수 있음)";
+      } finally {
+        btn.disabled = false;
+      }
     }
+
+    btn.addEventListener('click', searchUser);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        searchUser();
+      }
+    });
   </script>
 </body>
 </html>
