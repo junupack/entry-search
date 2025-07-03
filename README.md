@@ -2,115 +2,91 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>엔트리 유저 검색기</title>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-      max-width: 600px;
-      margin: auto;
-    }
-    input {
-      padding: 10px;
-      width: 70%;
-      font-size: 16px;
-    }
-    button {
-      padding: 10px 14px;
-      font-size: 16px;
-    }
-    .result {
-      margin-top: 20px;
-    }
-    .user {
-      display: flex;
-      align-items: center;
-      margin-bottom: 10px;
-      background: #f5f5f5;
-      border-radius: 8px;
-      padding: 8px;
-    }
-    .user img {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      margin-right: 10px;
-      cursor: pointer;
-    }
-    .user a {
-      font-size: 16px;
-      color: #2a5db0;
-      text-decoration: none;
+    body { font-family: sans-serif; padding: 20px; }
+    input, button { font-size: 16px; padding: 8px; }
+    .user-link {
+      display: block;
+      margin: 10px 0;
+      color: blue;
+      text-decoration: underline;
     }
   </style>
 </head>
 <body>
   <h2>🔍 엔트리 유저 검색기</h2>
-  <input type="text" id="nickname" placeholder="닉네임 입력">
-  <button onclick="searchUser()">검색</button>
-
-  <div class="result" id="result"></div>
+  <input type="text" id="nickname" placeholder="닉네임 입력" />
+  <button id="searchBtn">검색</button>
+  <div id="result" style="margin-top: 20px;"></div>
 
   <script>
+    // 연속 일치 문자 개수로 유사도 측정
     function similarity(a, b) {
       a = a.toLowerCase();
       b = b.toLowerCase();
-      let match = 0;
+      let matches = 0;
       for (let i = 0; i < Math.min(a.length, b.length); i++) {
-        if (a[i] === b[i]) match++;
+        if (a[i] === b[i]) matches++;
+        else break; // 첫 불일치 시 종료
       }
-      return match;
+      return matches;
     }
 
-    function searchUser() {
-      const keyword = document.getElementById("nickname").value.trim();
-      const resultBox = document.getElementById("result");
-      resultBox.innerHTML = "🔎 검색 중...";
+    const btn = document.getElementById('searchBtn');
+    const input = document.getElementById('nickname');
+    const resultBox = document.getElementById('result');
 
-      if (!keyword || keyword.length < 1) {
-        resultBox.innerHTML = "❗ 닉네임을 1자 이상 입력해주세요.";
+    async function searchUser() {
+      const nickname = input.value.trim();
+      if (!nickname) {
+        resultBox.textContent = '❗ 닉네임을 입력해주세요.';
         return;
       }
 
-      fetch(`https://playentry.org/api/user/find?q=${encodeURIComponent(keyword)}`)
-        .then(res => res.json())
-        .then(users => {
-          if (!users || users.length === 0) {
-            resultBox.innerHTML = "해당 닉네임을 가진 사용자가 없습니다.";
-            return;
-          }
+      btn.disabled = true;
+      resultBox.textContent = '🔎 검색 중...';
 
-          users.sort((a, b) => similarity(b.nickname, keyword) - similarity(a.nickname, keyword));
+      // 테스트용 CORS 프록시 (실환경에서는 안정적 프록시 권장)
+      const proxy = "https://corsproxy.io/?";
+      const url = `https://playentry.org/api/user/find?q=${encodeURIComponent(nickname)}`;
 
-          resultBox.innerHTML = `<h3>유저 검색 결과 (${users.length}명):</h3>`;
-          users.slice(0, 8).forEach(user => {
-            const profileURL = `https://playentry.org/profile/${user._id}?sort=created&term=all&isOpen=all`;
-            const profileImg = `https://playentry.org/uploads/${user.profileImage?.thumbnail || "avatars/default_user.png"}`;
+      try {
+        const res = await fetch(proxy + url);
+        if (!res.ok) throw new Error(`HTTP 오류: ${res.status}`);
 
-            const userDiv = document.createElement("div");
-            userDiv.className = "user";
+        const users = await res.json();
 
-            const img = document.createElement("img");
-            img.src = profileImg;
-            img.alt = user.nickname;
-            img.onclick = () => window.open(profileURL, "_blank");
+        if (!Array.isArray(users) || users.length === 0) {
+          resultBox.textContent = "😢 해당 닉네임을 가진 사용자가 없습니다.";
+          btn.disabled = false;
+          return;
+        }
 
-            const link = document.createElement("a");
-            link.href = profileURL;
-            link.target = "_blank";
-            link.textContent = user.nickname;
+        users.sort((a, b) => similarity(b.nickname, nickname) - similarity(a.nickname, nickname));
 
-            userDiv.appendChild(img);
-            userDiv.appendChild(link);
-            resultBox.appendChild(userDiv);
-          });
-        })
-        .catch(err => {
-          console.error(err);
-          resultBox.innerHTML = "오류 발생: 서버나 인터넷 문제일 수 있어요.";
+        resultBox.innerHTML = "<h3>🔗 유사 닉네임 검색 결과:</h3>";
+        users.forEach(user => {
+          const link = document.createElement("a");
+          link.href = `https://playentry.org/profile/${user._id}`;
+          link.textContent = `🧑 ${user.nickname}`;
+          link.className = "user-link";
+          link.target = "_blank";
+          resultBox.appendChild(link);
         });
+      } catch (err) {
+        console.error(err);
+        resultBox.textContent = "⚠️ 오류 발생 (인터넷 문제 또는 Entry 서버 문제일 수 있음)";
+      } finally {
+        btn.disabled = false;
+      }
     }
+
+    btn.addEventListener('click', searchUser);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') searchUser();
+    });
   </script>
 </body>
 </html>
