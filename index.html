@@ -1,0 +1,116 @@
+# entry-search
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>엔트리 유저 검색기</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+    }
+    input {
+      padding: 10px;
+      width: 70%;
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 14px;
+      font-size: 16px;
+    }
+    .result {
+      margin-top: 20px;
+    }
+    .user {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 8px;
+    }
+    .user img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+    .user a {
+      font-size: 16px;
+      color: #2a5db0;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>🔍 엔트리 유저 검색기</h2>
+  <input type="text" id="nickname" placeholder="닉네임 입력">
+  <button onclick="searchUser()">검색</button>
+
+  <div class="result" id="result"></div>
+
+  <script>
+    function similarity(a, b) {
+      a = a.toLowerCase();
+      b = b.toLowerCase();
+      let match = 0;
+      for (let i = 0; i < Math.min(a.length, b.length); i++) {
+        if (a[i] === b[i]) match++;
+      }
+      return match;
+    }
+
+    function searchUser() {
+      const keyword = document.getElementById("nickname").value.trim();
+      const resultBox = document.getElementById("result");
+      resultBox.innerHTML = "🔎 검색 중...";
+
+      if (!keyword || keyword.length < 1) {
+        resultBox.innerHTML = "❗ 닉네임을 1자 이상 입력해주세요.";
+        return;
+      }
+
+      fetch(`https://playentry.org/api/user/find?q=${encodeURIComponent(keyword)}`)
+        .then(res => res.json())
+        .then(users => {
+          if (!users || users.length === 0) {
+            resultBox.innerHTML = "해당 닉네임을 가진 사용자가 없습니다.";
+            return;
+          }
+
+          users.sort((a, b) => similarity(b.nickname, keyword) - similarity(a.nickname, keyword));
+
+          resultBox.innerHTML = `<h3>유저 검색 결과 (${users.length}명):</h3>`;
+          users.slice(0, 8).forEach(user => {
+            const profileURL = `https://playentry.org/profile/${user._id}?sort=created&term=all&isOpen=all`;
+            const profileImg = `https://playentry.org/uploads/${user.profileImage?.thumbnail || "avatars/default_user.png"}`;
+
+            const userDiv = document.createElement("div");
+            userDiv.className = "user";
+
+            const img = document.createElement("img");
+            img.src = profileImg;
+            img.alt = user.nickname;
+            img.onclick = () => window.open(profileURL, "_blank");
+
+            const link = document.createElement("a");
+            link.href = profileURL;
+            link.target = "_blank";
+            link.textContent = user.nickname;
+
+            userDiv.appendChild(img);
+            userDiv.appendChild(link);
+            resultBox.appendChild(userDiv);
+          });
+        })
+        .catch(err => {
+          console.error(err);
+          resultBox.innerHTML = "오류 발생: 서버나 인터넷 문제일 수 있어요.";
+        });
+    }
+  </script>
+</body>
+</html>
