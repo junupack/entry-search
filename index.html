@@ -4,10 +4,69 @@
 <head>
   <meta charset="UTF-8">
   <title>엔트리 유저 검색기</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    input, button { font-size: 16px; padding: 8px; }
+    .user-link {
+      display: block;
+      margin: 10px 0;
+      color: blue;
+      text-decoration: underline;
+    }
+  </style>
 </head>
 <body>
-  <h1>🔍 엔트리 유저 검색기</h1>
-  <input type="text" placeholder="닉네임 입력">
-  <button>검색</button>
+  <h2>🔍 엔트리 유저 검색기</h2>
+  <input type="text" id="nickname" placeholder="닉네임 입력">
+  <button onclick="searchUser()">검색</button>
+  <div id="result" style="margin-top: 20px;"></div>
+
+  <script>
+    function similarity(a, b) {
+      a = a.toLowerCase();
+      b = b.toLowerCase();
+      let matches = 0;
+      for (let i = 0; i < Math.min(a.length, b.length); i++) {
+        if (a[i] === b[i]) matches++;
+      }
+      return matches;
+    }
+
+    function searchUser() {
+      const nickname = document.getElementById("nickname").value.trim();
+      const resultBox = document.getElementById("result");
+      resultBox.innerHTML = "🔎 검색 중...";
+
+      // ⚠ CORS 프록시 주소 (테스트용)
+      const proxy = "https://corsproxy.io/?";
+      const url = `https://playentry.org/api/user/find?q=${encodeURIComponent(nickname)}`;
+
+      fetch(proxy + url)
+        .then(res => res.json())
+        .then(users => {
+          if (users.length === 0) {
+            resultBox.innerHTML = "😢 해당 닉네임을 가진 사용자가 없습니다.";
+            return;
+          }
+
+          // 유사도 기준 정렬
+          users.sort((a, b) => similarity(b.nickname, nickname) - similarity(a.nickname, nickname));
+
+          resultBox.innerHTML = "<h3>🔗 유사 닉네임 검색 결과:</h3>";
+          users.forEach(user => {
+            const link = document.createElement("a");
+            link.href = `https://playentry.org/profile/${user._id}`;
+            link.textContent = `🧑 ${user.nickname}`;
+            link.className = "user-link";
+            link.target = "_blank";
+            resultBox.appendChild(link);
+          });
+        })
+        .catch(err => {
+          console.error(err);
+          resultBox.innerHTML = "⚠️ 오류 발생 (인터넷 문제 또는 Entry 서버 문제일 수 있음)";
+        });
+    }
+  </script>
 </body>
 </html>
